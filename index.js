@@ -3,7 +3,7 @@ require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
 
-const { MongoClient, ServerApiVersion } = require('mongodb');
+const { MongoClient, ServerApiVersion,ObjectId  } = require('mongodb');
 const uri = process.env.MONGODB_URI;
 
 
@@ -37,7 +37,17 @@ async function run() {
       const books = await booksCollection.find({}).toArray();
       res.json(books);
     })
-    
+
+
+   app.get("/books/:id", async (req, res) => {
+  const id = req.params.id;
+
+  const book = await booksCollection.findOne({
+    _id: new ObjectId(id),
+  });
+
+  res.json(book);
+});
 
 
 

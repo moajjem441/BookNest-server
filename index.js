@@ -30,6 +30,8 @@ async function run() {
 
     const booksCollection = db.collection("books");
 
+    const usersCollection = db.collection("user");
+
 
      
 
@@ -48,6 +50,46 @@ async function run() {
 
   res.json(book);
 });
+
+
+
+
+
+
+app.get("/users/:id", async (req, res) => {
+  try {
+    const id = req.params.id;
+
+    if (!ObjectId.isValid(id)) {
+      return res.status(400).json({ message: "Invalid User ID format" });
+    }
+
+    // Replace `usersCollection` below with your actual collection variable name!
+    const singleUser = await usersCollection.findOne({
+      _id: new ObjectId(id),
+    });
+
+    if (!singleUser) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    res.status(200).json(singleUser);
+  } catch (error) {
+    res.status(500).json({ message: "Internal server error", error: error.message });
+  }
+});
+
+
+
+
+
+// app.post("/books/:id/request",async(req,res)=>{
+//   const id = req.params.id;
+//   const book = await booksCollection.findOne({
+//     _id: new ObjectId(id),
+//     $set:status:"requested"
+//   })
+// })
 
 
 

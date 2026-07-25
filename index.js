@@ -28,24 +28,20 @@ async function run() {
    
     const db = client.db("booknest");
 
+    const booksCollection = db.collection("books");
+
+
+     
+
+    app.get("/books",async(req,res)=>{
+      const books = await booksCollection.find({}).toArray();
+      res.json(books);
+    })
+    
 
 
 
-
-
-
-    // Send a ping to confirm a successful connection
-    await client.db("admin").command({ ping: 1 });
-    console.log("Pinged your deployment. You successfully connected to MongoDB!");
-  } finally {
-    // Ensures that the client will close when you finish/error
-    await client.close();
-  }
-}
-run().catch(console.dir);
-
-
-app.get("/", (req, res) => {
+    app.get("/", (req, res) => {
   res.send("booknest Server Running");
 });
 
@@ -54,3 +50,16 @@ const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
   console.log(`Example app listening on port ${PORT}`);
 });
+
+
+    // Send a ping to confirm a successful connection
+    await client.db("admin").command({ ping: 1 });
+    console.log("Pinged your deployment. You successfully connected to MongoDB!");
+  } finally {
+    // Ensures that the client will close when you finish/error
+    // await client.close();
+  }
+}
+run().catch(console.dir);
+
+

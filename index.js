@@ -2,60 +2,14 @@ require("dotenv").config();
 
 const express = require("express");
 const cors = require("cors");
-
-const { MongoClient, ServerApiVersion,ObjectId  } = require('mongodb');
-const uri = process.env.MONGODB_URI;
-
+const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 const { createRemoteJWKSet, jwtVerify } = require('jose-cjs');
 
 const app = express();
-
 app.use(cors());
 app.use(express.json());
 
-
-
-//----------middlewares-------------
-
-const JWKS = createRemoteJWKSet(
-  new URL(`${process.env.CLIENT_URL}/api/auth/jwks`)
-)
-
-
-const verifyToken =async (req,res,next)=>{
-  const authHeader=req?.headers.authorization
-  if(!authHeader){
-    return res.status(401).json({message:"Unauthorized"})
-  }
-  const token = authHeader.split(" ")[1]
-
-  if(!token){
-    return res.status(401).json({message:"Unauthorized"})
-  }
-  console.log(token)
-
-
-
-  try{
-    const {payload}=await jwtVerify(token,JWKS)
-
-  console.log(payload)
-
-   next()
-  }catch(error){
-    return res.status(403).json({message:
-      "Forbidden"
-    });
-  }
- 
-}
-
-
-
-
-
-
-// Create a MongoClient with a MongoClientOptions object to set the Stable API version
+const uri = process.env.MONGODB_URI;
 const client = new MongoClient(uri, {
   serverApi: {
     version: ServerApiVersion.v1,
@@ -63,201 +17,222 @@ const client = new MongoClient(uri, {
     deprecationErrors: true,
   }
 });
+
+// ===== ✅ ১. গ্লোবাল ভেরিয়েবল ডিক্লেয়ার করুন =====
+let booksCollection;
+let usersCollection;
+let borrowRequestsCollection;
+
+// ===== JWT মিডলওয়্যার (আগের মতো) =====
+const JWKS = createRemoteJWKSet(
+  new URL(`${process.env.CLIENT_URL}/api/auth/jwks`)
+);
+
+const verifyToken = async (req, res, next) => {
+  const authHeader = req?.headers.authorization;
+  if (!authHeader) {
+    return res.status(401).json({ message: "Unauthorized" });
+  }
+  const token = authHeader.split(" ")[1];
+  if (!token) {
+    return res.status(401).json({ message: "Unauthorized" });
+  }
+  try {
+    const { payload } = await jwtVerify(token, JWKS);
+    req.user = payload; // ✅ পেলোড থেকে ইউজার তথ্য সংরক্ষণ
+    next();
+  } catch (error) {
+    return res.status(403).json({ message: "Forbidden" });
+  }
+};
+
+// ===== MongoDB কানেক্ট ও রাউট সেটআপ =====
 async function run() {
   try {
-    // Connect the client to the server	(optional starting in v4.7)
     await client.connect();
-   
     const db = client.db("booknest");
 
-    const booksCollection = db.collection("books");
+    // ✅ ২. গ্লোবাল ভেরিয়েবলে অ্যাসাইন (const বাদ)
+    booksCollection = db.collection("books");
+    usersCollection = db.collection("user");
+    borrowRequestsCollection = db.collection("borrowRequest");
 
-    const usersCollection = db.collection("user");
+    // ===== রাউটগুলো =====
+    app.get("/", (req, res) => {
+      res.send("booknest Server Running");
+    });
 
-   
-   
-    const  borrowRequestsCollection = db.collection("borrowRequest");
-
-     
-
-    app.get("/books",async(req,res)=>{
+    app.get("/books", async (req, res) => {
       const books = await booksCollection.find({}).toArray();
       res.json(books);
-    })
+    });
+
+    app.get("/books/:id", async (req, res) => {
+      const id = req.params.id;
+      const book = await booksCollection.findOne({ _id: new ObjectId(id) });
+      res.json(book);
+    });
+
+    app.get("/users/:id", async (req, res) => {
+      try {
+        const id = req.params.id;
+        if (!ObjectId.isValid(id)) {
+          return res.status(400).json({ message: "Invalid User ID format" });
+        }
+        const singleUser = await usersCollection.findOne({ _id: new ObjectId(id) });
+        if (!singleUser) {
+          return res.status(404).json({ message: "User not found" });
+        }
+        res.status(200).json(singleUser);
+      } catch (error) {
+        res.status(500).json({ message: "Internal server error", error: error.message });
+      }
+    });
+
+    app.post("/books/:id/request", async (req, res) => {
+      try {
+        const id = req.params.id;
+        const borrower = req.body;
+        if (!ObjectId.isValid(id)) {
+          return res.status(400).json({ message: "Invalid Book ID" });
+        }
+        const book = await booksCollection.findOne({ _id: new ObjectId(id) });
+        if (!book) {
+          return res.status(404).json({ message: "Book not found" });
+        }
+        if (book.ownerEmail === borrower.email) {
+          return res.status(400).json({ message: "You can't borrow your own book." });
+        }
+        const alreadyRequested = await borrowRequestsCollection.findOne({
+          bookId: id,
+          borrowerEmail: borrower.email,
+          status: "pending",
+        });
+        if (alreadyRequested) {
+          return res.status(400).json({ message: "You already requested this book." });
+        }
+        const request = {
+          bookId: id,
+          bookTitle: book.title,
+          ownerEmail: book.ownerEmail,
+          borrowerName: borrower.name,
+          borrowerEmail: borrower.email,
+          status: "pending",
+          requestDate: new Date(),
+        };
+        const result = await borrowRequestsCollection.insertOne(request);
+        res.status(201).json({ success: true, insertedId: result.insertedId });
+      } catch (error) {
+        console.log(error);
+        res.status(500).json({ message: "Internal Server Error" });
+      }
+    });
+
+    // ===== ✅ ৩. `/books` রাউটে verifyToken মিডলওয়্যার ব্যবহার করুন =====
+    app.post("/books", verifyToken, async (req, res) => {
+      try {
+        const userId = req.user.id;
+        const { title, author, description, category, type, coverImage, pdfUrl, pickupLocation } = req.body;
+
+        const newBook = {
+          title,
+          author,
+          description: description || "",
+          category,
+          type,
+          coverImage: coverImage || "",
+          pdfUrl: type === "PDF" ? pdfUrl : "",
+          pickupLocation: type === "Physical" ? pickupLocation : "",
+          status: "Available",
+          ownerId: userId,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        };
+
+        const result = await booksCollection.insertOne(newBook);
+        res.status(201).json({ success: true, message: "Book shared!", bookId: result.insertedId });
+      } catch (error) {
+        console.error("❌ Error in /books:", error);
+        res.status(500).json({ error: error.message });
+      }
+    });
 
 
-   app.get("/books/:id", async (req, res) => {
-  const id = req.params.id;
-
-  const book = await booksCollection.findOne({
-    _id: new ObjectId(id),
-  });
-
-  res.json(book);
-});
 
 
-
-
-
-
-app.get("/users/:id", async (req, res) => {
+app.get("/dashboard/books", verifyToken, async (req, res) => {
   try {
-    const id = req.params.id;
+    // If verifyToken attaches the decoded user/session to req.user:
+    const userId = req.user?.id || req.user?._id;
 
-    if (!ObjectId.isValid(id)) {
-      return res.status(400).json({ message: "Invalid User ID format" });
+    if (!userId) {
+      return res.status(401).json({ error: "Unauthorized: User ID not found in token." });
     }
 
-    // Replace `usersCollection` below with your actual collection variable name!
-    const singleUser = await usersCollection.findOne({
-      _id: new ObjectId(id),
-    });
+    const sharedBooksCount = await booksCollection.countDocuments({ ownerId: userId });
 
-    if (!singleUser) {
-      return res.status(404).json({ message: "User not found" });
-    }
-
-    res.status(200).json(singleUser);
-  } catch (error) {
-    res.status(500).json({ message: "Internal server error", error: error.message });
-  }
-});
-
-
-
-
-
-app.post("/books/:id/request", async (req, res) => {
-  try {
-    const id = req.params.id;
-    const borrower = req.body; // frontend থেকে আসবে
-
-    if (!ObjectId.isValid(id)) {
-      return res.status(400).json({
-        message: "Invalid Book ID",
-      });
-    }
-
-    // বই খুঁজে বের করো
-    const book = await booksCollection.findOne({
-      _id: new ObjectId(id),
-    });
-
-    if (!book) {
-      return res.status(404).json({
-        message: "Book not found",
-      });
-    }
-
-    // নিজের বই নিজে borrow করতে পারবে না
-    if (book.ownerEmail === borrower.email) {
-      return res.status(400).json({
-        message: "You can't borrow your own book.",
-      });
-    }
-
-    // আগে request করেছে কিনা
-    const alreadyRequested = await borrowRequestsCollection.findOne({
-      bookId: id,
-      borrowerEmail: borrower.email,
-      status: "pending",
-    });
-
-    if (alreadyRequested) {
-      return res.status(400).json({
-        message: "You already requested this book.",
-      });
-    }
-
-    // Request Save
-    const request = {
-      bookId: id,
-      bookTitle: book.title,
-      ownerEmail: book.ownerEmail,
-
-      borrowerName: borrower.name,
-      borrowerEmail: borrower.email,
-
-      status: "pending",
-      requestDate: new Date(),
-    };
-
-    const result = await borrowRequestsCollection.insertOne(request);
-
-    res.status(201).json({
+    return res.status(200).json({
       success: true,
-      insertedId: result.insertedId,
+      userId,
+      sharedBooksCount,
     });
-
   } catch (error) {
-    console.log(error);
-    res.status(500).json({
-      message: "Internal Server Error",
-    });
+    console.error("Error counting shared books:", error);
+    return res.status(500).json({ error: "Internal server error" });
   }
 });
 
-
-
-app.post("/books",verifyToken, async (req, res) => {
+app.get("/dashboard/borrowRequests/email", verifyToken, async (req, res) => {
   try {
-    // ১. Better Auth থেকে লগইন করা ইউজারের আইডি নিন
-    const userId = req.user.id; // ← এটাই হলো "6a63cc86f10de289732d3a83"
-    
-    // ২. ইউজার ফর্ম থেকে যা পাঠিয়েছে সেটা নিন
-    const { title, author, description, category, type, coverImage, pdfUrl, pickupLocation } = req.body;
+    // ১. টোকেন থেকে ইউজারের ইমেইল বের করুন
+    const userEmail = req.user?.email; // Better Auth সাধারণত email ফিল্ড দেয়
 
-    // ৩. ডাটাবেসে সেভ করার জন্য ডকুমেন্ট বানান (এখানে ownerId যোগ করুন)
-    const newBook = {
-      title,
-      author,
-      description: description || "",
-      category,
-      type,
-      coverImage: coverImage || "",
-      pdfUrl: type === "PDF" ? pdfUrl : "",
-      pickupLocation: type === "Physical" ? pickupLocation : "",
-      status: "Available",
-      ownerId: userId, // ← সার্ভার এটি যোগ করছে (ইউজার দেয়নি)
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
+    if (!userEmail) {
+      return res.status(401).json({ error: "Unauthorized: Email not found in token." });
+    }
 
-    // ৪. ডাটাবেসে ইনসার্ট করুন
-    const result = await booksCollection.insertOne(newBook);
-    
-    res.status(201).json({ success: true, message: "Book shared!" });
+    // ২. ইমেইল দিয়ে borrowRequests খুঁজুন
+    const borrowRequests = await borrowRequestsCollection
+      .find({ borrowerEmail: userEmail }) // ← এখানে 'borrowerEmail' ফিল্ড ব্যবহার করুন
+      .sort({ createdAt: -1 })
+      .toArray();
 
+    // ৩. স্ট্যাটাস কাউন্ট করুন
+    const borrowedBooksCount = borrowRequests.filter(
+      (item) => item.status?.toLowerCase() === "approved"
+    ).length;
+
+    const pendingRequestsCount = borrowRequests.filter(
+      (req) => req.status?.toLowerCase() === "pending"
+    ).length;
+
+    return res.status(200).json({
+      success: true,
+      stats: {
+        borrowedBooksCount,
+        pendingRequestsCount,
+      },
+      borrowRequests,
+    });
   } catch (error) {
-    res.status(500).json({ error: "Failed to share book" });
+    console.error("Error fetching borrow requests:", error);
+    return res.status(500).json({ error: "Internal server error" });
   }
-})
-
-
-
-
-
-
-    app.get("/", (req, res) => {
-  res.send("booknest Server Running");
-});
-
-const PORT = process.env.PORT || 5000;
-
-app.listen(PORT, () => {
-  console.log(`Example app listening on port ${PORT}`);
 });
 
 
-    // Send a ping to confirm a successful connection
+
+    // ===== সার্ভার চালু =====
+    const PORT = process.env.PORT || 5000;
+    app.listen(PORT, () => {
+      console.log(`Example app listening on port ${PORT}`);
+    });
+
     await client.db("admin").command({ ping: 1 });
     console.log("Pinged your deployment. You successfully connected to MongoDB!");
-  } finally {
-    // Ensures that the client will close when you finish/error
-    // await client.close();
+  } catch (error) {
+    console.error("❌ Failed to connect to MongoDB:", error);
   }
 }
+
 run().catch(console.dir);
-
-

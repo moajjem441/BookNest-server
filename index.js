@@ -221,6 +221,31 @@ app.get("/dashboard/borrowRequests/email", verifyToken, async (req, res) => {
 });
 
 
+app.get("/dashboard/shared-books/:userId", async (req, res) => {
+  try {
+    const { userId } = req.params; // req.userId নয়, req.params হবে
+
+    if (!userId) {
+      return res.status(400).json({ message: "User ID is required" });
+    }
+
+    // String এবং ObjectId উভয় ফরম্যাটের সাথেই সেফলি ম্যাচ করানো
+    let queryConditions = [{ ownerId: userId }];
+    if (ObjectId.isValid(userId)) {
+      queryConditions.push({ ownerId: new ObjectId(userId) });
+    }
+
+    const sharedBooks = await booksCollection
+      .find({ $or: queryConditions })
+      .toArray();
+
+    return res.status(200).json(sharedBooks);
+  } catch (error) {
+    console.error("Error fetching shared books:", error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+});
+
 
     // ===== সার্ভার চালু =====
     const PORT = process.env.PORT || 5000;

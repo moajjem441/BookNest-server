@@ -247,6 +247,55 @@ app.get("/dashboard/shared-books/:userId", async (req, res) => {
 });
 
 
+
+
+// app.get("/dashboard/borrowRequests/:email", async (req, res) => {
+//   try {
+//     const {email}=req.params;
+    
+//     if(!email){
+//       return res.status(400).json({message:"Email is required"});
+
+//     }
+
+//     const borrowRequests = await borrowRequestsCollection.find({borrowerEmail:email}).toArray();
+//      return res.status(200).json(borrowRequests);
+    
+
+//   }catch(error){
+//     console.error("Error fetching borrow requests:",error);
+//     return res.status(500).json({message:"Internal server error"});
+//   }
+// })
+
+
+
+app.get("/dashboard/borrowRequests/:email", async (req, res) => {
+  try {
+    const { email } = req.params;
+
+    if (!email) {
+      return res.status(400).json({ message: "Email is required" });
+    }
+
+    // borrowerEmail এবং status "pending" দিয়ে ফিল্টার করা
+    const borrowRequests = await borrowRequestsCollection
+      .find({
+        borrowerEmail: email,
+        status: "pending", // অথবা case-insensitive চাইলে: { $regex: /^pending$/i }
+      })
+      .sort({ createdAt: -1 }) // নতুন রিকোয়েস্টগুলো সবার আগে দেখানোর জন্য
+      .toArray();
+
+    return res.status(200).json(borrowRequests);
+  } catch (error) {
+    console.error("Error fetching borrow requests:", error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+
+
     // ===== সার্ভার চালু =====
     const PORT = process.env.PORT || 5000;
     app.listen(PORT, () => {

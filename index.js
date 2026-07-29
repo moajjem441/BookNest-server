@@ -89,7 +89,7 @@ async function run() {
       }
     });
 
-    app.post("/books/:id/request", async (req, res) => {
+    app.post("/books/:id/request",verifyToken, async (req, res) => {
       try {
         const id = req.params.id;
         const borrower = req.body;
@@ -352,6 +352,7 @@ app.delete("/books/:id", async (req, res) => {
 app.patch("/borrow-requests/:id", async (req, res) => {
   try {
     const id = req.params.id;
+    console.log(req.body);
     const { status } = req.body;
 
     // Validation 1: ID format check
@@ -365,6 +366,13 @@ app.patch("/borrow-requests/:id", async (req, res) => {
       return res.status(400).json({ message: "Invalid status value provided." });
     }
 
+    // 🔍 আগে রিকোয়েস্টটি খুঁজে বের করি (bookId পেতে)
+    const request = await borrowRequestsCollection.findOne({ _id: new ObjectId(id) });
+    if (!request) {
+      return res.status(404).json({ message: "Borrow request not found." });
+    }
+
+    // 1️⃣ borrowRequestsCollection আপডেট করি (আগের মতো)
     const filter = { _id: new ObjectId(id) };
     const updateDoc = {
       $set: {
@@ -379,9 +387,30 @@ app.patch("/borrow-requests/:id", async (req, res) => {
       return res.status(404).json({ message: "Borrow request not found." });
     }
 
+    // 2️⃣ যদি status "Approved" হয়, তাহলে booksCollection-ও আপডেট করি
+    if (status === "Approved" && request.bookId) {
+      // bookId টি সঠিক কিনা চেক
+      if (ObjectId.isValid(request.bookId)) {
+        await booksCollection.updateOne(
+          { _id: new ObjectId(request.bookId) },
+          {
+            $set: {
+              status: "Borrowed", // অথবা "Approved" (আপনি যা চান)
+              updatedAt: new Date(),
+            },
+          }
+        );
+        console.log(`✅ Book ${request.bookId} status updated to Borrowed.`);
+      } else {
+        console.warn(`⚠️ Invalid bookId format: ${request.bookId}`);
+      }
+    }
+
+    // 3️⃣ রেসপন্স (আগের মতোই)
     return res.status(200).json({
       message: `Request status updated to ${status} successfully.`,
     });
+
   } catch (error) {
     console.error("Error updating status:", error);
     return res.status(500).json({ message: "Internal server error." });
@@ -420,5 +449,17 @@ app.delete("/borrow-requests/:id", async (req, res) => {
 
 
 
+    // ===== সার্ভার চালু =====
+    const PORT = process.env.PORT || 5000;
+    app.listen(PORT, () => {
+      console.log(`Example app listening on port ${PORT}`);
+    });
+
+    await client.db("admin").command({ ping: 1 });
+    console.log("Pinged your deployment. You successfully connected to MongoDB!");
+  } catch (error) {
+    console.error("❌ Failed to connect to MongoDB:", error);
+  }
+}
 
 run().catch(console.dir);

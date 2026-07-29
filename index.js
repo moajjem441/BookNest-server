@@ -447,6 +447,67 @@ app.delete("/borrow-requests/:id", async (req, res) => {
 
 
 
+app.get("/dashboard/books/borrowed/:email", async (req, res) => {
+  try {
+    const { email } = req.params;
+
+    // 1. Find all approved borrow requests for this user
+    const approvedRequests = await borrowRequestsCollection
+      .find({
+        borrowerEmail: email,
+        status: "Approved",
+      })
+      .toArray();
+
+    // Extract book IDs (and map string IDs to ObjectId)
+    const bookObjectIds = approvedRequests.map(
+      (req) => new ObjectId(req.bookId)
+    );
+
+    // 2. Fetch the corresponding books from booksCollection
+    const books = await booksCollection
+      .find({ _id: { $in: bookObjectIds } })
+      .toArray();
+
+    res.status(200).json(books);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+
+
+// PATCH: Return book and reset fields
+// app.patch("/dashboard/books/return/:id", async (req, res) => {
+//   try {
+//     const { id } = req.params;
+
+//     if (!ObjectId.isValid(id)) {
+//       return res.status(400).json({ error: "Invalid book ID" });
+//     }
+
+//     const result = await booksCollection.updateOne(
+//       { _id: new ObjectId(id) },
+//       { 
+//         $set: { 
+//           status: 'available',
+//           borrowedBy: null 
+//         } 
+//       }
+//     );
+
+//     if (result.matchedCount === 0) {
+//       return res.status(404).json({ message: "Book not found" });
+//     }
+
+//     res.status(200).json({ success: true, message: "Book returned successfully" });
+//   } catch (error) {
+//     res.status(500).json({ error: error.message });
+//   }
+// });
+
+
+
 
 
     // ===== সার্ভার চালু =====

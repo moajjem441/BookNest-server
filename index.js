@@ -347,6 +347,50 @@ app.delete("/books/:id", async (req, res) => {
 });
 
 
+// 1. UPDATE STATUS (PATCH /borrow-requests/:id)
+// ==========================================
+app.patch("/borrow-requests/:id", async (req, res) => {
+  try {
+    const id = req.params.id;
+    const { status } = req.body;
+
+    // Validation 1: ID format check
+    if (!ObjectId.isValid(id)) {
+      return res.status(400).json({ message: "Invalid request ID format." });
+    }
+
+    // Validation 2: Status check
+    const allowedStatuses = ["Approved", "Rejected", "Pending"];
+    if (!status || !allowedStatuses.includes(status)) {
+      return res.status(400).json({ message: "Invalid status value provided." });
+    }
+
+    const filter = { _id: new ObjectId(id) };
+    const updateDoc = {
+      $set: {
+        status: status,
+        updatedAt: new Date(),
+      },
+    };
+
+    const result = await borrowRequestsCollection.updateOne(filter, updateDoc);
+
+    if (result.matchedCount === 0) {
+      return res.status(404).json({ message: "Borrow request not found." });
+    }
+
+    return res.status(200).json({
+      message: `Request status updated to ${status} successfully.`,
+    });
+  } catch (error) {
+    console.error("Error updating status:", error);
+    return res.status(500).json({ message: "Internal server error." });
+  }
+});
+
+
+
+
 
     // ===== সার্ভার চালু =====
     const PORT = process.env.PORT || 5000;

@@ -392,17 +392,33 @@ app.patch("/borrow-requests/:id", async (req, res) => {
 
 
 
-    // ===== সার্ভার চালু =====
-    const PORT = process.env.PORT || 5000;
-    app.listen(PORT, () => {
-      console.log(`Example app listening on port ${PORT}`);
-    });
+// 2. DELETE REQUEST (DELETE /borrow-requests/:id)
+// ==========================================
+app.delete("/borrow-requests/:id", async (req, res) => {
+  try {
+    const id = req.params.id;
 
-    await client.db("admin").command({ ping: 1 });
-    console.log("Pinged your deployment. You successfully connected to MongoDB!");
+    // Validation: ID format check
+    if (!ObjectId.isValid(id)) {
+      return res.status(400).json({ message: "Invalid request ID format." });
+    }
+
+    const result = await borrowRequestsCollection.deleteOne({ _id: new ObjectId(id) });
+
+    if (result.deletedCount === 0) {
+      return res.status(404).json({ message: "Borrow request not found." });
+    }
+
+    return res.status(200).json({ message: "Borrow request deleted successfully." });
   } catch (error) {
-    console.error("❌ Failed to connect to MongoDB:", error);
+    console.error("Error deleting request:", error);
+    return res.status(500).json({ message: "Internal server error." });
   }
-}
+});
+
+
+
+
+
 
 run().catch(console.dir);

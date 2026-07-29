@@ -478,33 +478,33 @@ app.get("/dashboard/books/borrowed/:email", async (req, res) => {
 
 
 // PATCH: Return book and reset fields
-// app.patch("/dashboard/books/return/:id", async (req, res) => {
-//   try {
-//     const { id } = req.params;
+app.patch("/dashboard/books/return/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
 
-//     if (!ObjectId.isValid(id)) {
-//       return res.status(400).json({ error: "Invalid book ID" });
-//     }
+    if (!ObjectId.isValid(id)) {
+      return res.status(400).json({ error: "Invalid book ID" });
+    }
 
-//     const result = await booksCollection.updateOne(
-//       { _id: new ObjectId(id) },
-//       { 
-//         $set: { 
-//           status: 'available',
-//           borrowedBy: null 
-//         } 
-//       }
-//     );
+    const result = await booksCollection.updateOne(
+      { _id: new ObjectId(id) },
+      { 
+        $set: { 
+          status: 'available',
+          borrowedBy: null 
+        } 
+      }
+    );
 
-//     if (result.matchedCount === 0) {
-//       return res.status(404).json({ message: "Book not found" });
-//     }
+    if (result.matchedCount === 0) {
+      return res.status(404).json({ message: "Book not found" });
+    }
 
-//     res.status(200).json({ success: true, message: "Book returned successfully" });
-//   } catch (error) {
-//     res.status(500).json({ error: error.message });
-//   }
-// });
+    res.status(200).json({ success: true, message: "Book returned successfully" });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
 
 
 

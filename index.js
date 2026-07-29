@@ -182,7 +182,7 @@ app.get("/dashboard/books", verifyToken, async (req, res) => {
   }
 });
 
-app.get("/dashboard/borrowRequests/email", verifyToken, async (req, res) => {
+app.get("/dashboard/borrowRequests/email",  async (req, res) => {
   try {
     // ১. টোকেন থেকে ইউজারের ইমেইল বের করুন
     const userEmail = req.user?.email; // Better Auth সাধারণত email ফিল্ড দেয়
@@ -291,6 +291,53 @@ app.get("/dashboard/borrowRequests/:email", async (req, res) => {
   } catch (error) {
     console.error("Error fetching borrow requests:", error);
     return res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+
+
+
+
+app.delete('/dashboard/borrowRequests/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // 1. Safety check for collection initialization
+    if (!borrowRequestsCollection) {
+      return res.status(500).json({ error: 'Database collection is not initialized.' });
+    }
+
+    // 2. Validate MongoDB ObjectId
+    if (!ObjectId.isValid(id)) {
+      return res.status(400).json({ error: 'Invalid ID format' });
+    }
+
+    // 3. Execute deletion
+    const query = { _id: new ObjectId(id) };
+    const result = await borrowRequestsCollection.deleteOne(query);
+
+    if (result.deletedCount === 0) {
+      return res.status(404).json({ error: 'Borrow request not found' });
+    }
+
+    res.status(200).json({
+      message: 'Borrow request deleted successfully',
+      deletedCount: result.deletedCount,
+    });
+  } catch (error) {
+    // console.error('Delete Route Error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+
+
+app.get("/borrow-requests", async (req, res) => {
+  try {
+    const result = await borrowRequestsCollection.find().toArray();
+    return res.status(200).json(result);
+  } catch (error) {
+    return res.status(500).json({ error: "Failed to fetch borrow requests." });
   }
 });
 

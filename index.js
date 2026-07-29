@@ -182,7 +182,7 @@ app.get("/dashboard/books", verifyToken, async (req, res) => {
   }
 });
 
-app.get("/dashboard/borrowRequests/email",  async (req, res) => {
+app.get("/dashboard/borrowRequests/email",verifyToken,  async (req, res) => {
   try {
     // ১. টোকেন থেকে ইউজারের ইমেইল বের করুন
     const userEmail = req.user?.email; // Better Auth সাধারণত email ফিল্ড দেয়
@@ -247,26 +247,6 @@ app.get("/dashboard/shared-books/:userId", async (req, res) => {
 });
 
 
-
-
-// app.get("/dashboard/borrowRequests/:email", async (req, res) => {
-//   try {
-//     const {email}=req.params;
-    
-//     if(!email){
-//       return res.status(400).json({message:"Email is required"});
-
-//     }
-
-//     const borrowRequests = await borrowRequestsCollection.find({borrowerEmail:email}).toArray();
-//      return res.status(200).json(borrowRequests);
-    
-
-//   }catch(error){
-//     console.error("Error fetching borrow requests:",error);
-//     return res.status(500).json({message:"Internal server error"});
-//   }
-// })
 
 
 
@@ -338,6 +318,31 @@ app.get("/borrow-requests", async (req, res) => {
     return res.status(200).json(result);
   } catch (error) {
     return res.status(500).json({ error: "Failed to fetch borrow requests." });
+  }
+});
+
+
+
+app.delete("/books/:id", async (req, res) => {
+  try {
+    const id = req.params.id;
+
+    // ObjectId সঠিক ফরম্যাটে আছে কিনা তা চেক করা
+    if (!ObjectId.isValid(id)) {
+      return res.status(400).json({ message: "Invalid book ID format" });
+    }
+
+    const result = await booksCollection.deleteOne({ _id: new ObjectId(id) });
+
+    // deletedCount 0 হলে মানে এই ID দিয়ে কোনো বই পাওয়া যায়নি
+    if (result.deletedCount === 0) {
+      return res.status(404).json({ message: "Book not found" });
+    }
+
+    return res.status(200).json({ message: "Book deleted successfully" });
+  } catch (error) {
+    console.error("Error deleting book:", error);
+    return res.status(500).json({ message: "Internal server error" });
   }
 });
 

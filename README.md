@@ -297,8 +297,8 @@ This project is licensed under the **MIT License**.
 
 **Moajjem Hossain**
 
-* GitHub: https://github.com/moajjem441
-* LinkedIn: https://linkedin.com/in/your-linkedin
+- GitHub: https://github.com/moajjem441
+- LinkedIn: https://www.linkedin.com/in/moajjem-hossain-/
 
 ---
 

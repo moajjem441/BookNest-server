@@ -6,7 +6,7 @@ The BookNest Server is a RESTful backend API built with **Node.js**, **Express.j
 
 ## 🌐 Links
 
-- 🚀 **Live Demo:** https://your-live-demo-link.com
+- 🚀 **Live Demo:** [https://your-live-demo-link.com](https://booknest-server-six.vercel.app/)
 - 💻 **Client Repository:** https://github.com/moajjem441/BookNest
 - ⚙️ **Server Repository:** https://github.com/moajjem441/BookNest-server
 
